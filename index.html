@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Venice AI Chat V1.0.6 (Hotfix .value)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        gray: {
+                            850: '#1f2937',
+                            900: '#111827',
+                            950: '#030712',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+
+        .message-content img { margin-top: 0.5rem; max-width: 100%; border-radius: 0.5rem; }
+
+        /* Markdown Styles */
+        .markdown-body { line-height: 1.6; font-size: 0.95rem; }
+        .markdown-body p { margin-bottom: 0.75em; }
+        .markdown-body p:last-child { margin-bottom: 0; }
+        .markdown-body h1 { font-size: 1.5em; font-weight: bold; margin: 0.5em 0; border-bottom: 1px solid #374151; padding-bottom: 0.3em; }
+        .markdown-body h2 { font-size: 1.3em; font-weight: bold; margin: 0.5em 0; }
+        .markdown-body h3 { font-size: 1.1em; font-weight: bold; margin: 0.5em 0; }
+        .markdown-body pre { background-color: #111827; padding: 1em; border-radius: 0.5em; overflow-x: auto; margin: 0.75em 0; border: 1px solid #374151; }
+        .markdown-body code { background-color: #374151; padding: 0.2em 0.4em; border-radius: 0.3em; font-family: monospace; font-size: 0.9em; }
+        .markdown-body pre code { background-color: transparent; padding: 0; color: #e5e7eb; }
+        .markdown-body blockquote { border-left: 4px solid #3b82f6; padding-left: 1em; color: #9ca3af; margin: 0.75em 0; }
+        .markdown-body a { color: #60a5fa; text-decoration: underline; }
+
+        /* Details/Summary animation */
+        details > summary { list-style: none; }
+        details > summary::-webkit-details-marker { display: none; }
+
+        /* Modal Animation */
+        .modal-enter-active, .modal-leave-active { transition: opacity 0.3s ease; }
+        .modal-enter-from, .modal-leave-to { opacity: 0; }
+
+        /* Range Slider */
+        input[type="range"] { -webkit-appearance: none; appearance: none; height: 4px; width: 100%; background: #4b5563; border-radius: 2px; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #60a5fa; cursor: pointer; transition: all 0.15s ease; border: 2px solid #1f2937; }
+        input[type="range"]::-webkit-slider-thumb:hover { background: #3b82f6; transform: scale(1.1); }
+        input[type="range"]:focus { outline: none; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 h-screen flex flex-col font-sans antialiased">
+    <div id="app" class="flex flex-col h-full max-w-4xl mx-auto w-full shadow-2xl bg-gray-950 relative">
+        
+        <transition name="modal">
+            <div v-if="showSettings" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="showSettings = false">
+                <div class="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                    <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-850">
+                        <h2 class="text-lg font-bold flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-blue-400">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            系統設定 (Settings)
+                        </h2>
+                        <button @click="showSettings = false" class="text-gray-400 hover:text-white" type="button">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="p-6 space-y-6 overflow-y-auto custom-scrollbar">
+                        <div class="space-y-2">
+                            <label for="sysInst" class="block text-sm font-medium text-gray-300">🧠 系統指令 (System Instruction)</label>
+                            <p class="text-xs text-gray-500">定義 AI 的人設、回答風格或全域規則。</p>
+                            <textarea id="sysInst" name="sysInst" v-model="systemInstruction" placeholder="例如：你是一個資深 Python 工程師，請用繁體中文回答所有問題..." class="w-full bg-gray-950 border border-gray-700 rounded-lg p-3 text-sm text-gray-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50 resize-y min-h-[100px]"></textarea>
+                        </div>
+                        <hr class="border-gray-800">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300">🌐 連網搜尋 (Web Search)</label>
+                                <p class="text-xs text-gray-500">允許 AI 搜尋即時資訊 (僅文字模型有效)</p>
+                            </div>
+                            <button @click="isWebSearchEnabled = !isWebSearchEnabled" type="button" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none" :class="isWebSearchEnabled ? 'bg-emerald-600' : 'bg-gray-700'">
+                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition duration-200" :class="isWebSearchEnabled ? 'translate-x-6' : 'translate-x-1'"></span>
+                            </button>
+                        </div>
+                        <hr class="border-gray-800">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label for="rememberKey" class="block text-sm font-medium text-gray-300">🔑 記住 API Key</label>
+                                <p class="text-xs text-gray-500">將 Key 儲存於瀏覽器 LocalStorage</p>
+                            </div>
+                            <input type="checkbox" id="rememberKey" name="rememberKey" v-model="rememberApiKey" class="w-5 h-5 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    <div class="p-4 bg-gray-850 border-t border-gray-800 text-right">
+                        <button @click="showSettings = false" type="button" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors">完成設定</button>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <header class="p-4 border-b border-gray-800 bg-gray-900 flex flex-col gap-3 z-10">
+            <div class="flex justify-between items-center w-full">
+                <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">Venice AI Chat V1.0.6</h1>
+                <div class="flex items-center gap-2">
+                    <button @click="showSettings = true" class="text-gray-400 hover:text-blue-400 transition-colors p-1" title="設定" type="button"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg></button>
+                    <div class="h-4 w-px bg-gray-700 mx-1"></div>
+                    <button @click="exportHistory" class="text-gray-400 hover:text-green-400 transition-colors p-1" title="儲存對話紀錄" type="button"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg></button>
+                    <button @click="resetChat" class="text-gray-400 hover:text-red-400 transition-colors p-1" title="清空對話" type="button"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg></button>
+                </div>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-3 items-center w-full">
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <label for="modelSelect" class="text-sm text-gray-400 whitespace-nowrap">Model:</label>
+                    <select id="modelSelect" name="modelSelect" v-model="modelId" class="bg-gray-800 border border-gray-700 rounded px-3 py-1 text-sm focus:outline-none focus:border-blue-500 transition-colors w-full sm:w-64">
+                        <optgroup v-for="group in availableModels" :key="group.label" :label="group.label">
+                            <option v-for="model in group.options" :key="model.id" :value="model.id">{{ model.name }}</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2 w-full sm:w-auto sm:ml-auto md:ml-0 bg-gray-800/50 p-1.5 rounded-lg border border-gray-700/50">
+                    <label for="tempSlider" class="text-xs text-gray-400 whitespace-nowrap">{{ sliderConfig.label }}:</label>
+                    <input id="tempSlider" name="tempSlider" type="range" v-model.number="sliderValue" :min="sliderConfig.min" :max="sliderConfig.max" :step="sliderConfig.step" class="w-24 sm:w-32 cursor-pointer">
+                    <span class="text-xs font-mono w-10 text-center">{{ sliderDisplayValue }}</span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap" :class="sliderBadgeClass">{{ sliderLabel }}</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 w-full">
+                <label for="apiKey" class="text-sm text-gray-400 whitespace-nowrap">API Key:</label>
+                <input id="apiKey" name="apiKey" type="password" v-model="apiKey" placeholder="輸入 API Key" class="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1 text-sm focus:outline-none focus:border-blue-500 transition-colors">
+            </div>
+        </header>
+
+        <main class="flex-1 overflow-y-auto p-4 space-y-4" id="chat-container">
+            <div v-if="messages.length === 0" class="text-center text-gray-500 mt-20">
+                <p class="text-lg">👋 Venice AI Chat V1.0.6 (Hotfix)</p>
+                <p class="text-sm mt-2">點擊右上角 <span class="text-blue-400">⚙️</span> 設定人設與連網功能</p>
+                <p class="text-xs mt-1">現在支援 <span class="text-red-400">🎤 語音輸入</span> (已修正 Android 權限與檔案上傳)</p>
+                <div v-if="systemInstruction" class="mt-4 max-w-md mx-auto bg-gray-900/50 border border-dashed border-gray-700 p-3 rounded-lg text-xs text-gray-400 text-left">
+                    <span class="font-bold text-gray-300 block mb-1">已啟用系統指令:</span> {{ systemInstruction }}
+                </div>
+            </div>
+
+            <div v-for="(msg, index) in messages" :key="index" class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
+                <div class="max-w-[90%] rounded-2xl px-4 py-3 shadow-md" :class="msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-200 rounded-bl-none border border-gray-700'">
+                    <div class="text-xs opacity-50 mb-1 font-bold flex items-center gap-2">
+                        <span>{{ msg.role === 'user' ? 'You' : 'Venice AI' }}</span>
+                        <span v-if="msg.role !== 'user' && msg.model" class="font-normal opacity-75 text-[10px] bg-gray-700/50 px-1 rounded">({{ getModelDisplay(msg.model) }})</span>
+                    </div>
+                    <div class="markdown-body" v-html="msg.content"></div>
+                </div>
+            </div>
+
+            <div v-if="isLoading" class="flex justify-start">
+                <div class="bg-gray-800 border border-gray-700 rounded-2xl rounded-bl-none px-4 py-3 flex items-center gap-2">
+                    <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></div>
+                    <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce delay-75"></div>
+                    <div class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce delay-150"></div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="p-4 bg-gray-900 border-t border-gray-800">
+            <div v-if="attachedFiles.length > 0" class="mb-2 flex gap-2 overflow-x-auto pb-1">
+                <div v-for="(file, index) in attachedFiles" :key="index" class="shrink-0 flex items-center gap-2 bg-gray-800 p-2 rounded-lg border border-gray-700 max-w-[200px]">
+                    <span class="text-xs text-gray-300 truncate" :title="file.name">{{ file.name }}</span>
+                    <span v-if="file.type === 'image'" class="text-[10px] bg-blue-900 text-blue-200 px-1 rounded">IMG</span>
+                    <span v-else class="text-[10px] bg-gray-700 text-gray-300 px-1 rounded">TXT</span>
+                    <button @click="removeFile(index)" type="button" class="text-gray-400 hover:text-red-400 ml-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                </div>
+            </div>
+
+            <div v-if="currentModelType === 'image' && lastGeneratedImage && attachedFiles.length === 0" class="flex items-center gap-2 mb-3 px-1">
+                <input type="checkbox" id="refineCheck" name="refineCheck" v-model="useLastImage" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-600 focus:ring-2">
+                <label for="refineCheck" class="text-sm text-gray-300 select-none cursor-pointer flex items-center gap-2">✨ 基於此圖修改 (Refine)</label>
+                <transition enter-active-class="transition ease-out duration-200" enter-from-class="opacity-0 scale-95" enter-to-class="opacity-100 scale-100">
+                    <img v-if="useLastImage" :src="lastGeneratedImage" class="w-8 h-8 rounded border border-gray-500 object-cover shadow-sm" alt="Refine Target">
+                </transition>
+            </div>
+
+            <div class="flex gap-2 relative items-end">
+                <div class="flex items-center mb-3">
+                    <button @click="triggerFileUpload" class="text-gray-400 hover:text-white transition-colors p-2" title="上傳檔案" type="button">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" /></svg>
+                    </button>
+                    <button @click="toggleSpeechRecognition" type="button" 
+                            class="transition-all duration-300 p-2 rounded-full"
+                            :class="isRecording ? 'text-red-500 animate-pulse bg-red-500/10' : 'text-gray-400 hover:text-white'"
+                            title="語音輸入 (zh-TW)">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+                        </svg>
+                    </button>
+                </div>
+
+                <input type="file" ref="fileInput" @change="handleFileChange" class="hidden" multiple id="fileUpload" name="fileUpload" />
+                
+                <textarea id="userInput" name="userInput" v-model="userInput" @keydown.enter.exact.prevent="sendMessage" 
+                    :placeholder="isRecording ? '正在聆聽中...' : (currentModelType === 'image' ? '輸入圖片提示詞...' : '輸入訊息...')" 
+                    class="w-full bg-gray-800 text-white border border-gray-700 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:border-blue-500 resize-none h-14 max-h-32 overflow-y-auto transition-all"
+                    :class="{'border-red-500/50 ring-1 ring-red-500/20': isRecording, 'border-emerald-600/50 bg-emerald-900/10': isWebSearchEnabled && currentModelType !== 'image'}"
+                    rows="1"></textarea>
+
+                <button @click="sendMessage" type="button" :disabled="isSendDisabled" class="absolute right-2 top-2 bottom-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg px-3 transition-colors flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>
+                </button>
+            </div>
+            <div class="text-center mt-2 flex justify-center gap-3">
+                <span class="text-xs text-gray-500">Model: {{ modelId }}</span>
+                <span class="text-xs text-gray-500 border-l border-gray-700 pl-3">Type: {{ currentModelType }}</span>
+                <span class="text-xs text-gray-500 border-l border-gray-700 pl-3" v-if="isWebSearchEnabled && currentModelType !== 'image'">🌐 Web Search</span>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, nextTick, watch, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const apiKey = ref('');
+                const userInput = ref('');
+                const messages = ref([]);
+                const isLoading = ref(false);
+                const isRecording = ref(false);
+                const baseUrl = 'https://api.venice.ai/api/v1';
+                const fileInput = ref(null);
+                const attachedFiles = ref([]);
+                const lastGeneratedImage = ref(null);
+                const useLastImage = ref(false);
+
+                // --- Settings State ---
+                const showSettings = ref(false);
+                const isWebSearchEnabled = ref(false);
+                const systemInstruction = ref('');
+                const rememberApiKey = ref(false);
+                const sessionId = ref(Date.now().toString());
+                const sliderValue = ref(0.7);
+
+                // --- Speech Recognition Logic ---
+                let recognition = null;
+
+                const toggleSpeechRecognition = async () => {
+                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                    
+                    if (!SpeechRecognition) {
+                        alert('您的瀏覽器不支援語音辨識功能。請使用 Chrome、Edge 或 Safari。');
+                        return;
+                    }
+
+                    if (isRecording.value) {
+                        if (recognition) recognition.stop();
+                        return;
+                    }
+
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        stream.getTracks().forEach(track => track.stop());
+                    } catch (err) {
+                        console.error('Microphone permission denied:', err);
+                        alert('無法取得麥克風權限。\n請確認您的網站是否使用 HTTPS 安全連線 (Android 強制要求)，並允許麥克風存取。');
+                        return;
+                    }
+
+                    if (!recognition) {
+                        recognition = new SpeechRecognition();
+                        recognition.lang = 'zh-TW';
+                        recognition.continuous = false;
+                        recognition.interimResults = false;
+
+                        recognition.onstart = () => { isRecording.value = true; };
+                        recognition.onend = () => { isRecording.value = false; };
+                        recognition.onerror = (event) => {
+                            console.error('Speech Recognition Error:', event.error);
+                            isRecording.value = false;
+                            if (event.error !== 'no-speech' && event.error !== 'not-allowed') {
+                                alert('語音辨識發生錯誤: ' + event.error);
+                            } else if (event.error === 'not-allowed') {
+                                alert('請允許麥克風權限以使用語音輸入功能。');
+                            }
+                        };
+                        recognition.onresult = (event) => {
+                            const transcript = event.results[0][0].transcript;
+                            if (userInput.value && !userInput.value.endsWith(' ')) {
+                                userInput.value += ' ' + transcript;
+                            } else {
+                                userInput.value += transcript;
+                            }
+                        };
+                    }
+
+                    try { recognition.start(); } catch (e) { console.error('Recognition start error:', e); }
+                };
+
+                // --- Available Models ---
+                const availableModels = [
+                    {
+                        label: "群組一：文字模型 (純文字)",
+                        options: [
+                            { id: "qwen3-4b", name: "venice small 0.05/0.15 隱私", type: 'text' },
+                            { id: "venice-uncensored", name: "venice uncensored 0.2/0.9 隱私", type: 'text' },
+                            { id: "kimi-k2-thinking", name: "kimi K2 Thinking 0.75/3.2 隱私", type: 'text' },
+                            { id: "zai-org-glm-4.6", name: "GLM 4.6 0.85/2.75 隱私", type: 'text' },
+                            { id: "qwen3-235b-a22b-instruct-2507", name: "Qwen 3 Instruct 0.15/0.75 隱私", type: 'text' },
+                            { id: "qwen3-235b-a22b-thinking-2507", name: "Qwen 3 thinking 0.45/3.5 隱私", type: 'text' },
+                            { id: "qwen3-coder-480b-a35b-instruct", name: "qwen3 coder 480b 0.75/3 隱私", type: 'text' },
+                            { id: "deepseek-v3.2", name: "DeepSeek v3.2 0.4/1 隱私", type: 'text' },
+                            { id: "openai-gpt-oss-120b", name: "GPT OSS 120B 0.07/0.3", type: 'text' },
+                            { id: "openai-gpt-52", name: "gpt 5.2 2.19/17.5", type: 'text' },
+                            { id: "llama-3.3-70b", name: "llama 3.3 0.7/2.6 隱私", type: 'text' }
+                        ]
+                    },
+                    {
+                        label: "群組二：圖像生成模型 (畫圖)",
+                        options: [
+                            { id: "qwen-image", name: "qwen image 0.01 隱私 修圖", type: 'image' },
+                            { id: "venice-sd35", name: "venice sd35 0.01 隱私", type: 'image' },
+                            { id: "lustify-sdxl", name: "lustify sdxl image 0.01 隱私 無刪減", type: 'image' },
+                            { id: "lustify-v7", name: "lustify v7 image 0.01 隱私 無刪減", type: 'image' },
+                            { id: "flux-2-pro", name: "flux 2 pro image 0.04", type: 'image' },
+                            { id: "gpt-image-1-5", name: "GPT image 1.5 0.23", type: 'image' },
+                            { id: "nano-banana-pro", name: "nano banana pro 0.18 修圖", type: 'image' }
+                        ]
+                    },
+                    {
+                        label: "群組三：多模態模型 (看圖+文字)",
+                        options: [
+                            { id: "google-gemma-3-27b-it", name: "google gemma 3 0.12/0.2 隱私", type: 'text', vision: true },
+                            { id: "grok-41-fast", name: "grok 4.1 fast 0.5/1.25", type: 'text', vision: true },
+                            { id: "claude-opus-45", name: "claude opus 4.5 6/30", type: 'text', vision: true },
+                            { id: "mistral-31-24b", name: "Venice Medium 0.5/2", type: 'text', vision: true },
+                            { id: "gemini-3-flash-preview", name: "gemini 3 flash preview 0.7/3.75", type: 'text', vision: true },
+                            { id: "gemini-3-pro-preview", name: "gemini 3 pro preview 2.5/15", type: 'text', vision: true }
+                        ]
+                    }
+                ];
+
+                const modelId = ref('qwen3-235b-a22b-instruct-2507');
+                const currentModelType = computed(() => {
+                    for (const group of availableModels) {
+                        const found = group.options.find(opt => opt.id === modelId.value);
+                        if (found) return found.type;
+                    }
+                    return 'text';
+                });
+
+                // --- Slider Logic ---
+                const sliderConfig = computed(() => currentModelType.value === 'image' 
+                    ? { min: 1, max: 20, step: 0.5, default: 7.5, label: 'CFG Scale' } 
+                    : { min: 0, max: 1.2, step: 0.1, default: 0.7, label: 'Temperature' });
+                
+                const sliderDisplayValue = computed(() => sliderValue.value.toFixed(1));
+                const sliderLabel = computed(() => {
+                    if (currentModelType.value === 'image') return sliderValue.value < 5 ? '藝術' : (sliderValue.value > 12 ? '精準' : '平衡');
+                    else return sliderValue.value < 0.4 ? '理性' : (sliderValue.value > 0.8 ? '創意' : '平衡');
+                });
+                const sliderBadgeClass = computed(() => {
+                    if (currentModelType.value === 'image') return sliderValue.value < 5 ? 'border-pink-800 bg-pink-900/30 text-pink-300' : (sliderValue.value > 12 ? 'border-blue-800 bg-blue-900/30 text-blue-300' : 'border-purple-800 bg-purple-900/30 text-purple-300');
+                    else return sliderValue.value < 0.4 ? 'border-blue-800 bg-blue-900/30 text-blue-300' : (sliderValue.value > 0.8 ? 'border-pink-800 bg-pink-900/30 text-pink-300' : 'border-purple-800 bg-purple-900/30 text-purple-300');
+                });
+
+                watch(currentModelType, (newType) => { sliderValue.value = newType === 'image' ? 7.5 : 0.7; });
+
+                // --- Helper: Escape HTML ---
+                const escapeHtml = (unsafe) => {
+                    if (!unsafe) return "";
+                    return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+                };
+
+                const isSendDisabled = computed(() => {
+                    if (isLoading.value) return true;
+                    const hasText = userInput.value && userInput.value.trim().length > 0;
+                    const hasFiles = attachedFiles.value.length > 0;
+                    const hasRefine = useLastImage.value;
+                    return !(hasText || hasFiles || hasRefine);
+                });
+
+                // --- Persistence ---
+                onMounted(async () => {
+                    if (localStorage.getItem('venice-web-search') === 'true') isWebSearchEnabled.value = true;
+                    if (localStorage.getItem('venice-system-instruction')) systemInstruction.value = localStorage.getItem('venice-system-instruction');
+                    if (localStorage.getItem('venice-remember-key') === 'true') {
+                        rememberApiKey.value = true;
+                        if (localStorage.getItem('venice-api-key')) apiKey.value = localStorage.getItem('venice-api-key');
+                    }
+                    await nextTick();
+                    addCopyButtonsToCodeBlocks();
+                });
+
+                watch(isWebSearchEnabled, (v) => localStorage.setItem('venice-web-search', v));
+                watch(systemInstruction, (v) => localStorage.setItem('venice-system-instruction', v));
+                watch(rememberApiKey, (v) => {
+                    localStorage.setItem('venice-remember-key', v);
+                    v ? localStorage.setItem('venice-api-key', apiKey.value) : localStorage.removeItem('venice-api-key');
+                });
+                watch(apiKey, (v) => { if (rememberApiKey.value) localStorage.setItem('venice-api-key', v); });
+
+                // --- File & UI Utils ---
+                const triggerFileUpload = () => fileInput.value.click();
+                const handleFileChange = async (event) => {
+                    const files = Array.from(event.target.files);
+                    if (!files.length) return;
+                    for (const file of files) {
+                        if (file.size > 10 * 1024 * 1024) { alert(`檔案 ${file.name} 超過 10MB`); continue; }
+                        try {
+                            const reader = new FileReader();
+                            const p = new Promise((resolve, reject) => {
+                                if (file.type.startsWith('image/')) {
+                                    reader.onload = (e) => resolve({ name: file.name, type: 'image', size: file.size, content: e.target.result, rawFile: file });
+                                } else {
+                                    reader.onload = (e) => resolve({ name: file.name, type: 'text', size: file.size, content: e.target.result });
+                                }
+                                reader.onerror = reject;
+                            });
+                            if (file.type.startsWith('image/')) reader.readAsDataURL(file); else reader.readAsText(file);
+                            attachedFiles.value.push(await p);
+                        } catch (e) { console.error(e); }
+                    }
+                    if (attachedFiles.value.length > 0) useLastImage.value = false;
+                    event.target.value = '';
+                };
+                const removeFile = (index) => attachedFiles.value.splice(index, 1);
+
+                const scrollToBottom = async () => {
+                    await nextTick();
+                    const c = document.getElementById('chat-container');
+                    if (c) c.scrollTop = c.scrollHeight;
+                    addCopyButtonsToCodeBlocks();
+                };
+                watch(messages, async () => { await nextTick(); addCopyButtonsToCodeBlocks(); }, { deep: true });
+
+                const getModelDisplay = (id) => {
+                    for (const g of availableModels) {
+                        const f = g.options.find(o => o.id === id);
+                        if (f) return f.name;
+                    }
+                    return id;
+                };
+
+                const resetChat = () => {
+                    if (confirm('確定要清空對話嗎？')) {
+                        messages.value = [];
+                        userInput.value = '';
+                        attachedFiles.value = [];
+                        sessionId.value = Date.now().toString();
+                    }
+                };
+
+const exportHistory = async () => {
+  if (!messages.value.length) return alert('無內容可存');
+
+  // 優先使用 File System Access API（Chrome/Edge）
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: `venice-chat-history-${Date.now()}.json`,
+        types: [{
+          description: '聊天紀錄檔案',
+          accept: { 'application/json': ['.json'] }
+        }]
+      });
+      const writable = await handle.createWritable();
+      const dataStr = JSON.stringify(messages.value, null, 2);
+      await writable.write(dataStr);
+      await writable.close();
+      return;
+    } catch (err) {
+      if (err.name !== 'AbortError') console.error('儲存失敗:', err);
+      return; // 使用者取消也無妨
+    }
+  }
+
+  // 降級：詢問檔名
+  const userInput = prompt('請輸入檔案名稱：', `venice-chat-history-${Date.now()}`);
+  if (!userInput) return;
+
+  const filename = `${userInput.trim()}.json`;
+  const dataStr = JSON.stringify(messages.value, null, 2);
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+                const urlToFile = async (url, filename, mimeType) => { const res = await fetch(url); const blob = await res.blob(); return new File([blob], filename, { type: mimeType || blob.type }); };
+
+                // --- Core API Logic ---
+                const handleImageGeneration = async (prompt) => {
+                    let p = { prompt: prompt, negativePrompt: null };
+                    if (prompt.match(/ --no /i)) { const parts = prompt.split(/ --no /i); p = { prompt: parts[0].trim(), negativePrompt: parts[1].trim() }; }
+                    else if (prompt.toLowerCase().startsWith('--no ')) { p = { prompt: '', negativePrompt: prompt.substring(5).trim() }; }
+
+                    const payload = { model: modelId.value, prompt: p.prompt || prompt, width: 1024, height: 1024, return_binary: false, cfg_scale: sliderValue.value };
+                    if (p.negativePrompt) payload.negative_prompt = p.negativePrompt;
+                    const res = await fetch(`${baseUrl}/image/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey.value}` }, body: JSON.stringify(payload) });
+                    if (!res.ok) throw new Error(`文生圖失敗: ${res.status}`);
+                    const data = await res.json();
+                    const url = data.images?.[0] ? `data:image/png;base64,${data.images[0]}` : (data.data?.[0]?.url || '');
+                    if (!url) throw new Error('無法解析圖片');
+                    lastGeneratedImage.value = url;
+                    return `${p.negativePrompt ? `<div class="text-xs text-gray-400 mb-2">🚫 ${p.negativePrompt}</div>` : ''}<img src="${url}" class="rounded-lg max-w-full shadow-lg" />`;
+                };
+
+                const handleImageEdit = async (prompt, fileObj) => {
+                    const fd = new FormData(); fd.append('image', fileObj.rawFile); fd.append('prompt', prompt);
+                    const res = await fetch(`${baseUrl}/image/edit`, { method: 'POST', headers: { 'Authorization': `Bearer ${apiKey.value}` }, body: fd });
+                    if (!res.ok) throw new Error(`修圖失敗: ${res.status}`);
+                    let url = ''; const ct = res.headers.get('content-type');
+                    if (ct && ct.startsWith('image/')) url = URL.createObjectURL(await res.blob());
+                    else { const d = await res.json(); url = d.images?.[0] ? `data:image/png;base64,${d.images[0]}` : (d.data?.[0]?.url || ''); }
+                    lastGeneratedImage.value = url; return `<div class="mb-2 text-xs text-gray-400">✨ Modified:</div><img src="${url}" class="rounded-lg max-w-full shadow-lg" />`;
+                };
+
+                // --- 🚩 CRITICAL FIX: Wrapped in Try/Catch to alert hidden errors ---
+                const sendMessage = async () => {
+                    try {
+                        if (isSendDisabled.value) return;
+                        if (!apiKey.value) return alert('請先輸入 API Key');
+
+                        let originalContent = userInput.value;
+                        if ((!originalContent || originalContent.trim() === "") && (attachedFiles.value.length > 0 || useLastImage.value)) {
+                            originalContent = " ";
+                        }
+                        
+                        let displayContent = escapeHtml(userInput.value);
+                        const type = currentModelType.value;
+                        let filesToSend = [...attachedFiles.value];
+
+                        if (useLastImage.value && lastGeneratedImage.value && attachedFiles.value.length === 0) {
+                            try {
+                                const blobFile = await urlToFile(lastGeneratedImage.value, "generated-prev.png");
+                                filesToSend.push({ name: "generated-refine.png", type: "image", size: blobFile.size, content: lastGeneratedImage.value, rawFile: blobFile });
+                                displayContent = `<span class="text-xs text-blue-300 border border-blue-500 rounded px-1 mr-1">Refine</span> ` + displayContent;
+                                displayContent += `<br><img src="${lastGeneratedImage.value}" class="max-w-xs rounded mt-2 border border-gray-600 opacity-80" title="Based on previous image">`;
+                            } catch (e) { return alert("圖片讀取失敗: " + e.message); }
+                        }
+
+                        if (type !== 'image' && isWebSearchEnabled.value) {
+                            displayContent = `<span class="text-xs text-emerald-300 border border-emerald-500 rounded px-1 mr-1">Web Search</span> ` + displayContent;
+                        }
+
+                        if (!useLastImage.value && attachedFiles.value.length > 0) {
+                            // 修正點: attachedFiles.value.map (加上 .value)
+                            displayContent += `<div class="mt-2 space-y-1">` + attachedFiles.value.map(f => f.type === 'image' ? `<img src="${f.content}" class="max-w-xs rounded border border-gray-600 mb-1">` : `<div class="text-xs text-gray-400 bg-gray-800 p-2 rounded border border-gray-700">📄 ${f.name}</div>`).join('') + `</div>`;
+                        }
+
+                        messages.value.push({ role: 'user', content: displayContent.replace(/\n/g, '<br>') });
+                        userInput.value = ''; 
+                        isLoading.value = true;
+                        await scrollToBottom();
+
+                        let response = '';
+                        
+                        if (type === 'image') {
+                            const imgFiles = filesToSend.filter(f => f.type === 'image');
+                            response = imgFiles.length > 0 ? await handleImageEdit(originalContent, imgFiles[0]) : await handleImageGeneration(originalContent);
+                            messages.value.push({ role: 'assistant', content: response, model: modelId.value });
+                        
+                        } else {
+                            let promptText = originalContent;
+                            
+                            const textFiles = filesToSend.filter(f => f.type === 'text');
+                            if (textFiles.length > 0) {
+                                promptText += "\n\n--- Context Files ---\n";
+                                textFiles.forEach(f => { promptText += `\n[File: ${f.name}]\n${f.content}\n`; });
+                            }
+
+                            const imageFiles = filesToSend.filter(f => f.type === 'image');
+                            
+                            const currentModelObj = availableModels.flatMap(g => g.options).find(m => m.id === modelId.value);
+                            // 🔍 Debug: 確保模型有被找到
+                            if (!currentModelObj) {
+                                throw new Error(`找不到模型 ID: ${modelId.value}，請嘗試重新整理或選擇其他模型。`);
+                            }
+
+                            const supportsVision = currentModelObj && currentModelObj.vision === true;
+
+                            let userMessageContent;
+
+                            if (imageFiles.length > 0) {
+                                if (supportsVision) {
+                                    userMessageContent = [{ type: "text", text: promptText }];
+                                    imageFiles.forEach(img => userMessageContent.push({ type: "image_url", image_url: { url: img.content } }));
+                                } else {
+                                    userMessageContent = promptText;
+                                    messages.value.push({ role: 'system', content: `<span class="text-yellow-500 text-xs">⚠️ 警告: 目前選擇的模型 (${currentModelObj.name}) 不支援讀取圖片，圖片已略過。請切換至群組三的模型。</span>` });
+                                }
+                            } else {
+                                userMessageContent = promptText;
+                            }
+
+                            const history = messages.value.slice(0, -1).map(m => {
+                                let c = m.content;
+                                if (typeof c === 'string') c = c.replace(/<[^>]*>?/gm, '');
+                                return { role: m.role, content: c };
+                            }).filter(m => m.role !== 'system');
+
+                            const apiMessages = [
+                                ...(systemInstruction.value ? [{ role: 'system', content: systemInstruction.value }] : []),
+                                ...history,
+                                { role: 'user', content: userMessageContent }
+                            ];
+
+                            const payload = {
+                                model: modelId.value,
+                                messages: apiMessages,
+                                temperature: sliderValue.value,
+                                prompt_cache_key: sessionId.value
+                            };
+                            if (isWebSearchEnabled.value) payload.venice_parameters = { enable_web_search: "auto", enable_web_scraping: true };
+
+                            const res = await fetch(`${baseUrl}/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey.value}` }, body: JSON.stringify(payload) });
+                            if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || 'Request failed'); }
+                            
+                            const data = await res.json();
+                            let reply = data.choices[0].message.content;
+                            
+                            // 檢查 marked 是否載入
+                            if (typeof marked === 'undefined') {
+                                reply = reply.replace(/</g, "&lt;").replace(/>/g, "&gt;"); // Fallback simple escape
+                                console.error("Marked library not loaded");
+                            } else {
+                                reply = marked.parse(reply);
+                            }
+
+                            reply = reply.replace(/<think>([\s\S]*?)<\/think>/gi, (m, i) => `<details class="group my-3 rounded-lg border border-gray-700/50 bg-gray-900/40 overflow-hidden"><summary class="cursor-pointer select-none px-4 py-2 text-xs text-gray-500 font-medium hover:text-blue-400 hover:bg-gray-800/50 flex items-center gap-2"><span>💭 Reasoning</span><span class="text-[10px] opacity-40 ml-auto group-open:hidden">Expand</span></summary><div class="px-4 py-3 text-xs font-mono text-gray-400 bg-gray-950/50 border-t border-gray-800/50 whitespace-pre-wrap leading-relaxed">${i.trim()}</div></details>`);
+                            
+                            messages.value.push({ role: 'assistant', content: reply, model: modelId.value });
+                        }
+                    } catch (error) {
+                        console.error("Critical Error in sendMessage:", error);
+                        alert(`❌ 發生錯誤 (Client Error):\n${error.message}\n\n請檢查控制台 (F12) 以獲取更多細節。`);
+                        messages.value.push({ role: 'assistant', content: `<span class="text-red-400">⚠️ 客戶端錯誤: ${error.message}</span>` });
+                    } finally {
+                        isLoading.value = false; 
+                        attachedFiles.value = []; 
+                        useLastImage.value = false; 
+                        await scrollToBottom();
+                    }
+                };
+
+                // Copy Button Logic
+                const clipboardSvg = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5.25H7.5A2.25 2.25 0 0 0 5.25 7.5v12A2.25 2.25 0 0 0 7.5 21.75h9A2.25 2.25 0 0 0 18.75 19.5v-12A2.25 2.25 0 0 0 16.5 5.25H15M9 5.25A2.25 2.25 0 0 1 11.25 3h1.5A2.25 2.25 0 0 1 15 5.25M9 5.25h6" /></svg>`;
+                const checkSvg = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>`;
+                const copyTextToClipboard = async (text) => { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return; } const t = document.createElement('textarea'); t.value = text; t.style.position='fixed'; t.style.left='-9999px'; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); };
+                const addCopyButtonsToCodeBlocks = () => {
+                    const c = document.getElementById('chat-container'); if (!c) return;
+                    c.querySelectorAll('.markdown-body pre').forEach((pre) => {
+                        if (pre.parentElement?.classList.contains('code-block-wrapper')) return;
+                        const w = document.createElement('div'); w.className = 'relative code-block-wrapper'; pre.parentNode.insertBefore(w, pre); w.appendChild(pre);
+                        const b = document.createElement('button'); b.type = 'button'; b.setAttribute('data-copy-button', 'true'); b.className = 'absolute top-2 right-2 z-10 inline-flex items-center justify-center rounded-md bg-gray-900/70 hover:bg-gray-900/90 text-gray-100 border border-gray-700/60 backdrop-blur px-2 py-1 transition-colors'; b.innerHTML = clipboardSvg;
+                        b.addEventListener('click', async (e) => { e.preventDefault(); e.stopPropagation(); const code = pre.querySelector('code'); await copyTextToClipboard(code ? code.innerText : pre.innerText); b.innerHTML = checkSvg; b.classList.add('border-green-700/60', 'text-green-200'); setTimeout(() => { b.innerHTML = clipboardSvg; b.classList.remove('border-green-700/60', 'text-green-200'); }, 2000); });
+                        w.appendChild(b);
+                    });
+                };
+
+                return {
+                    apiKey, userInput, messages, isLoading, isRecording,
+                    sendMessage, toggleSpeechRecognition,
+                    modelId, availableModels, currentModelType,
+                    fileInput, attachedFiles, triggerFileUpload, handleFileChange, removeFile,
+                    lastGeneratedImage, useLastImage, resetChat, exportHistory, getModelDisplay,
+                    sliderValue, sliderConfig, sliderDisplayValue, sliderLabel, sliderBadgeClass,
+                    showSettings, isWebSearchEnabled, systemInstruction, rememberApiKey, isSendDisabled
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
