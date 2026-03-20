@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Venice AI 金鑰管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        gray: {
+                            850: '#1f2937',
+                            900: '#111827',
+                            950: '#030712',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        .modal-enter-active, .modal-leave-active { transition: opacity 0.3s ease; }
+        .modal-enter-from, .modal-leave-to { opacity: 0; }
+        .toast-enter-active { transition: all 0.3s ease; }
+        .toast-leave-active { transition: all 0.3s ease; }
+        .toast-enter-from { transform: translateY(-20px); opacity: 0; }
+        .toast-leave-to { transform: translateY(-20px); opacity: 0; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 h-screen flex flex-col font-sans antialiased">
+    <div id="app" class="flex flex-col h-full max-w-5xl mx-auto w-full shadow-2xl bg-gray-950 relative">
+
+        <!-- Toast Notification -->
+        <transition name="toast">
+            <div v-if="toast.show" class="fixed top-4 right-4 z-[100] px-4 py-3 rounded-lg shadow-lg border text-sm max-w-sm"
+                :class="toast.type === 'error' ? 'bg-red-900/90 border-red-700 text-red-200' : 'bg-emerald-900/90 border-emerald-700 text-emerald-200'">
+                {{ toast.message }}
+            </div>
+        </transition>
+
+        <!-- Create/Edit Modal -->
+        <transition name="modal">
+            <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="showModal = false">
+                <div class="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                    <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-850">
+                        <h2 class="text-lg font-bold">{{ editingKey ? '編輯金鑰' : '新增金鑰' }}</h2>
+                        <button @click="showModal = false" class="text-gray-400 hover:text-white" type="button">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                    <div class="p-6 space-y-4 overflow-y-auto">
+                        <div v-if="!editingKey" class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-300">金鑰類型</label>
+                            <div class="flex gap-4">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" v-model="form.apiKeyType" value="INFERENCE" class="text-blue-600">
+                                    <span class="text-sm">INFERENCE</span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/50 text-blue-300 border border-blue-800">推論</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" v-model="form.apiKeyType" value="ADMIN" class="text-red-600">
+                                    <span class="text-sm">ADMIN</span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-red-900/50 text-red-300 border border-red-800">管理</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-300">描述</label>
+                            <input type="text" v-model="form.description" placeholder="例如：My Production Key" class="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 text-sm text-gray-200 focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label class="block text-sm font-medium text-gray-300">消費限額 (USD)</label>
+                                <input type="number" v-model.number="form.consumptionLimit.usd" placeholder="無限制" min="0" step="0.01" class="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 text-sm text-gray-200 focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div class="space-y-2">
+                                <label class="block text-sm font-medium text-gray-300">消費限額 (DIEM)</label>
+                                <input type="number" v-model.number="form.consumptionLimit.diem" placeholder="無限制" min="0" step="0.01" class="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 text-sm text-gray-200 focus:border-blue-500 focus:outline-none">
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-300">到期時間</label>
+                            <input type="datetime-local" v-model="form.expiresAt" class="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 text-sm text-gray-200 focus:border-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <div class="p-4 bg-gray-850 border-t border-gray-800 flex justify-end gap-3">
+                        <button @click="showModal = false" type="button" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors">取消</button>
+                        <button @click="submitForm" type="button" :disabled="formLoading" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors">
+                            {{ formLoading ? '處理中...' : (editingKey ? '更新' : '建立') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <!-- New Key Display Modal -->
+        <transition name="modal">
+            <div v-if="newlyCreatedKey" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="newlyCreatedKey = null">
+                <div class="bg-gray-900 border border-gray-700 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden">
+                    <div class="p-4 border-b border-gray-800 bg-gray-850">
+                        <h2 class="text-lg font-bold text-emerald-400">金鑰建立成功</h2>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <p class="text-sm text-yellow-400">請立即複製此金鑰，關閉後將無法再次查看完整金鑰！</p>
+                        <div class="flex items-center gap-2 bg-gray-950 border border-gray-700 rounded-lg p-3">
+                            <code class="text-sm text-emerald-300 flex-1 break-all select-all">{{ newlyCreatedKey }}</code>
+                            <button @click="copyToClipboard(newlyCreatedKey)" type="button" class="shrink-0 p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors" title="複製">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5.25H7.5A2.25 2.25 0 0 0 5.25 7.5v12A2.25 2.25 0 0 0 7.5 21.75h9A2.25 2.25 0 0 0 18.75 19.5v-12A2.25 2.25 0 0 0 16.5 5.25H15M9 5.25A2.25 2.25 0 0 1 11.25 3h1.5A2.25 2.25 0 0 1 15 5.25M9 5.25h6" /></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-gray-850 border-t border-gray-800 text-right">
+                        <button @click="newlyCreatedKey = null" type="button" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors">確認已複製</button>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <!-- Header -->
+        <header class="p-4 border-b border-gray-800 bg-gray-900 z-10">
+            <div class="flex justify-between items-center mb-3">
+                <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">Venice AI 金鑰管理</h1>
+                <a href="index.html" class="text-sm text-gray-400 hover:text-blue-400 transition-colors flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>
+                    返回聊天
+                </a>
+            </div>
+            <div class="flex items-center gap-2">
+                <label class="text-sm text-gray-400 whitespace-nowrap">Admin Key:</label>
+                <input type="password" v-model="adminKey" placeholder="輸入 ADMIN API Key" @keydown.enter="login"
+                    class="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 transition-colors">
+                <button v-if="!isAuthenticated" @click="login" :disabled="loginLoading" type="button"
+                    class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 text-white rounded text-sm font-medium transition-colors whitespace-nowrap">
+                    {{ loginLoading ? '驗證中...' : '登入' }}
+                </button>
+                <button v-else @click="logout" type="button"
+                    class="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors whitespace-nowrap">
+                    登出
+                </button>
+                <label class="flex items-center gap-1.5 text-xs text-gray-500 whitespace-nowrap cursor-pointer select-none">
+                    <input type="checkbox" v-model="rememberKey" class="w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 text-blue-600">
+                    記住
+                </label>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <template v-if="isAuthenticated">
+            <!-- Tab Navigation -->
+            <nav class="flex gap-1 p-3 border-b border-gray-800 bg-gray-900/50">
+                <button v-for="tab in tabs" :key="tab.id" @click="activeTab = tab.id" type="button"
+                    class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    :class="activeTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'">
+                    {{ tab.label }}
+                </button>
+            </nav>
+
+            <main class="flex-1 overflow-y-auto p-4">
+
+                <!-- Tab: API Keys -->
+                <div v-if="activeTab === 'keys'">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-bold">API 金鑰列表</h2>
+                        <div class="flex gap-2">
+                            <button @click="fetchKeys" type="button" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors">重新整理</button>
+                            <button @click="openCreateModal" type="button" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors">+ 新增金鑰</button>
+                        </div>
+                    </div>
+
+                    <div v-if="keysLoading" class="text-center text-gray-500 py-12">載入中...</div>
+                    <div v-else-if="apiKeys.length === 0" class="text-center text-gray-500 py-12">尚無 API 金鑰</div>
+                    <div v-else class="overflow-x-auto rounded-xl border border-gray-800">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-850 text-gray-400">
+                                <tr>
+                                    <th class="text-left p-3 font-medium">描述</th>
+                                    <th class="text-left p-3 font-medium">類型</th>
+                                    <th class="text-left p-3 font-medium">金鑰前綴</th>
+                                    <th class="text-left p-3 font-medium">到期時間</th>
+                                    <th class="text-left p-3 font-medium">消費限額</th>
+                                    <th class="text-right p-3 font-medium">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="key in apiKeys" :key="key.id" class="border-t border-gray-800 hover:bg-gray-900/50">
+                                    <td class="p-3">{{ key.description || '(未命名)' }}</td>
+                                    <td class="p-3">
+                                        <span class="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                                            :class="key.apiKeyType === 'ADMIN' ? 'bg-red-900/50 text-red-300 border border-red-800' : 'bg-blue-900/50 text-blue-300 border border-blue-800'">
+                                            {{ key.apiKeyType }}
+                                        </span>
+                                    </td>
+                                    <td class="p-3 font-mono text-xs text-gray-400">{{ key.apiKeyPrefix || key.apiKey?.substring(0, 20) + '...' || '-' }}</td>
+                                    <td class="p-3 text-gray-400">{{ key.expiresAt ? formatDate(key.expiresAt) : '永不' }}</td>
+                                    <td class="p-3 text-gray-400">
+                                        <span v-if="key.consumptionLimit">
+                                            <span v-if="key.consumptionLimit.usd != null">${{ key.consumptionLimit.usd }}</span>
+                                            <span v-if="key.consumptionLimit.usd != null && key.consumptionLimit.diem != null"> / </span>
+                                            <span v-if="key.consumptionLimit.diem != null">{{ key.consumptionLimit.diem }} DIEM</span>
+                                        </span>
+                                        <span v-else class="text-gray-600">無限制</span>
+                                    </td>
+                                    <td class="p-3 text-right">
+                                        <div class="flex justify-end gap-1">
+                                            <button @click="openEditModal(key)" type="button" class="p-1.5 text-gray-400 hover:text-blue-400 transition-colors rounded hover:bg-gray-800" title="編輯">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
+                                            </button>
+                                            <button @click="deleteKey(key)" type="button" class="p-1.5 text-gray-400 hover:text-red-400 transition-colors rounded hover:bg-gray-800" title="刪除">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab: Balance & Limits -->
+                <div v-if="activeTab === 'balance'">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-bold">餘額與限制</h2>
+                        <button @click="fetchBalance" type="button" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors">重新整理</button>
+                    </div>
+
+                    <div v-if="balanceLoading" class="text-center text-gray-500 py-12">載入中...</div>
+                    <template v-else-if="balanceData">
+                        <!-- Balance Cards -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                                <div class="text-xs text-gray-500 mb-1">USD 餘額</div>
+                                <div class="text-2xl font-bold text-emerald-400">${{ balanceData.balances?.USD?.toFixed(2) ?? 'N/A' }}</div>
+                            </div>
+                            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                                <div class="text-xs text-gray-500 mb-1">DIEM 餘額</div>
+                                <div class="text-2xl font-bold text-blue-400">{{ balanceData.balances?.DIEM?.toFixed(2) ?? 'N/A' }}</div>
+                            </div>
+                            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                                <div class="text-xs text-gray-500 mb-1">API Tier</div>
+                                <div class="text-2xl font-bold text-purple-400">{{ balanceData.apiTier?.id ?? 'N/A' }}</div>
+                                <div v-if="balanceData.apiTier?.isCharged" class="text-[10px] text-yellow-400 mt-1">付費方案</div>
+                            </div>
+                            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                                <div class="text-xs text-gray-500 mb-1">金鑰到期</div>
+                                <div class="text-lg font-bold text-gray-300">{{ balanceData.keyExpiration ? formatDate(balanceData.keyExpiration) : '永不' }}</div>
+                                <div v-if="balanceData.nextEpochBegins" class="text-[10px] text-gray-500 mt-1">Epoch 重置: {{ formatDate(balanceData.nextEpochBegins) }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Rate Limits Table -->
+                        <h3 class="text-md font-bold mb-3">各模型速率限制</h3>
+                        <div v-if="balanceData.rateLimits?.length" class="overflow-x-auto rounded-xl border border-gray-800">
+                            <table class="w-full text-sm">
+                                <thead class="bg-gray-850 text-gray-400">
+                                    <tr>
+                                        <th class="text-left p-3 font-medium">模型</th>
+                                        <th class="text-left p-3 font-medium" v-for="lt in rateLimitTypes" :key="lt">{{ lt }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="rl in balanceData.rateLimits" :key="rl.apiModelId" class="border-t border-gray-800 hover:bg-gray-900/50">
+                                        <td class="p-3 font-mono text-xs">{{ rl.apiModelId }}</td>
+                                        <td class="p-3 text-gray-400" v-for="lt in rateLimitTypes" :key="lt">
+                                            {{ getRateLimit(rl, lt) }}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div v-else class="text-center text-gray-500 py-8">無速率限制資料</div>
+                    </template>
+                    <div v-else class="text-center text-gray-500 py-12">無資料，請點擊重新整理</div>
+                </div>
+
+                <!-- Tab: Usage -->
+                <div v-if="activeTab === 'usage'">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-bold">用量統計</h2>
+                        <div class="flex gap-2 items-center">
+                            <label class="text-sm text-gray-400">時間範圍:</label>
+                            <select v-model="usageLookback" @change="fetchUsage" class="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500">
+                                <option value="7d">7 天</option>
+                                <option value="14d">14 天</option>
+                                <option value="30d">30 天</option>
+                                <option value="90d">90 天</option>
+                            </select>
+                            <button @click="fetchUsage" type="button" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors">重新整理</button>
+                        </div>
+                    </div>
+
+                    <div v-if="usageLoading" class="text-center text-gray-500 py-12">載入中...</div>
+                    <template v-else-if="usageData">
+                        <!-- Usage Table -->
+                        <div v-if="usageData.data?.length" class="overflow-x-auto rounded-xl border border-gray-800">
+                            <table class="w-full text-sm">
+                                <thead class="bg-gray-850 text-gray-400">
+                                    <tr>
+                                        <th class="text-left p-3 font-medium">日期</th>
+                                        <th class="text-left p-3 font-medium" v-for="keyName in usageKeyNames" :key="keyName">{{ keyName }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="row in usageData.data" :key="row.date" class="border-t border-gray-800 hover:bg-gray-900/50">
+                                        <td class="p-3 text-gray-400 whitespace-nowrap">{{ formatDate(row.date) }}</td>
+                                        <td class="p-3" v-for="keyName in usageKeyNames" :key="keyName">
+                                            <span v-if="row[keyName] != null" class="text-emerald-400">{{ typeof row[keyName] === 'number' ? row[keyName].toFixed(4) : row[keyName] }}</span>
+                                            <span v-else class="text-gray-600">-</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div v-else class="text-center text-gray-500 py-8">選定期間內無用量紀錄</div>
+                    </template>
+                    <div v-else class="text-center text-gray-500 py-12">
+                        <p>點擊「重新整理」載入用量資料</p>
+                        <p class="text-xs mt-1 text-gray-600">需要 ADMIN 金鑰權限</p>
+                    </div>
+                </div>
+
+            </main>
+        </template>
+
+        <!-- Not Authenticated -->
+        <div v-else class="flex-1 flex items-center justify-center">
+            <div class="text-center text-gray-500 space-y-3">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" class="w-16 h-16 mx-auto text-gray-700"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" /></svg>
+                <p class="text-lg">請輸入 ADMIN API Key 以管理金鑰</p>
+                <p class="text-xs">在上方輸入框填入您的 Venice AI Admin Key 後按登入</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, watch } = Vue;
+
+        createApp({
+            setup() {
+                const BASE_URL = 'https://api.venice.ai/api/v1';
+
+                // Auth
+                const adminKey = ref('');
+                const isAuthenticated = ref(false);
+                const loginLoading = ref(false);
+                const rememberKey = ref(false);
+
+                // UI
+                const activeTab = ref('keys');
+                const tabs = [
+                    { id: 'keys', label: 'API 金鑰' },
+                    { id: 'balance', label: '餘額與限制' },
+                    { id: 'usage', label: '用量統計' }
+                ];
+
+                // Toast
+                const toast = ref({ show: false, message: '', type: 'success' });
+                let toastTimer = null;
+                const showToast = (message, type = 'success') => {
+                    clearTimeout(toastTimer);
+                    toast.value = { show: true, message, type };
+                    toastTimer = setTimeout(() => { toast.value.show = false; }, 4000);
+                };
+
+                // Keys
+                const apiKeys = ref([]);
+                const keysLoading = ref(false);
+                const showModal = ref(false);
+                const editingKey = ref(null);
+                const formLoading = ref(false);
+                const newlyCreatedKey = ref(null);
+                const form = ref({ apiKeyType: 'INFERENCE', description: '', consumptionLimit: { usd: null, diem: null }, expiresAt: '' });
+
+                // Balance
+                const balanceData = ref(null);
+                const balanceLoading = ref(false);
+
+                // Usage
+                const usageData = ref(null);
+                const usageLookback = ref('30d');
+                const usageLoading = ref(false);
+
+                // --- API Helper ---
+                const apiFetch = async (endpoint, options = {}) => {
+                    const res = await fetch(`${BASE_URL}${endpoint}`, {
+                        ...options,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${adminKey.value}`,
+                            ...(options.headers || {})
+                        }
+                    });
+                    if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        throw new Error(err.error?.message || err.message || `HTTP ${res.status}`);
+                    }
+                    return res.json();
+                };
+
+                // --- Date Formatting ---
+                const dateFmt = new Intl.DateTimeFormat('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                const formatDate = (d) => { try { return dateFmt.format(new Date(d)); } catch { return d; } };
+
+                // --- Clipboard ---
+                const copyToClipboard = async (text) => {
+                    try {
+                        if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); }
+                        else { const t = document.createElement('textarea'); t.value = text; t.style.position='fixed'; t.style.left='-9999px'; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); }
+                        showToast('已複製到剪貼簿');
+                    } catch (e) { showToast('複製失敗: ' + e.message, 'error'); }
+                };
+
+                // --- Auth ---
+                const login = async () => {
+                    if (!adminKey.value.trim()) return showToast('請輸入 API Key', 'error');
+                    loginLoading.value = true;
+                    try {
+                        const data = await apiFetch('/api_keys');
+                        isAuthenticated.value = true;
+                        apiKeys.value = data.data || data || [];
+                        if (rememberKey.value) localStorage.setItem('venice-admin-key', adminKey.value);
+                        showToast('登入成功');
+                    } catch (e) {
+                        showToast('登入失敗: ' + e.message, 'error');
+                    } finally { loginLoading.value = false; }
+                };
+
+                const logout = () => {
+                    isAuthenticated.value = false;
+                    apiKeys.value = [];
+                    balanceData.value = null;
+                    usageData.value = null;
+                    localStorage.removeItem('venice-admin-key');
+                };
+
+                // --- Keys CRUD ---
+                const fetchKeys = async () => {
+                    keysLoading.value = true;
+                    try {
+                        const data = await apiFetch('/api_keys');
+                        apiKeys.value = data.data || data || [];
+                    } catch (e) { showToast('載入金鑰失敗: ' + e.message, 'error'); }
+                    finally { keysLoading.value = false; }
+                };
+
+                const openCreateModal = () => {
+                    editingKey.value = null;
+                    form.value = { apiKeyType: 'INFERENCE', description: '', consumptionLimit: { usd: null, diem: null }, expiresAt: '' };
+                    showModal.value = true;
+                };
+
+                const openEditModal = (key) => {
+                    editingKey.value = key;
+                    form.value = {
+                        apiKeyType: key.apiKeyType,
+                        description: key.description || '',
+                        consumptionLimit: { usd: key.consumptionLimit?.usd ?? null, diem: key.consumptionLimit?.diem ?? null },
+                        expiresAt: key.expiresAt ? new Date(key.expiresAt).toISOString().slice(0, 16) : ''
+                    };
+                    showModal.value = true;
+                };
+
+                const submitForm = async () => {
+                    formLoading.value = true;
+                    try {
+                        const body = {};
+                        if (form.value.description) body.description = form.value.description;
+                        if (form.value.expiresAt) body.expiresAt = new Date(form.value.expiresAt).toISOString();
+
+                        const limit = {};
+                        if (form.value.consumptionLimit.usd != null && form.value.consumptionLimit.usd !== '') limit.usd = Number(form.value.consumptionLimit.usd);
+                        if (form.value.consumptionLimit.diem != null && form.value.consumptionLimit.diem !== '') limit.diem = Number(form.value.consumptionLimit.diem);
+                        if (Object.keys(limit).length > 0) body.consumptionLimit = limit;
+
+                        if (editingKey.value) {
+                            body.id = editingKey.value.id;
+                            await apiFetch('/api_keys', { method: 'PATCH', body: JSON.stringify(body) });
+                            showToast('金鑰已更新');
+                        } else {
+                            body.apiKeyType = form.value.apiKeyType;
+                            const data = await apiFetch('/api_keys', { method: 'POST', body: JSON.stringify(body) });
+                            const createdKey = data.data?.apiKey || data.apiKey;
+                            if (createdKey) newlyCreatedKey.value = createdKey;
+                            showToast('金鑰已建立');
+                        }
+                        showModal.value = false;
+                        await fetchKeys();
+                    } catch (e) { showToast('操作失敗: ' + e.message, 'error'); }
+                    finally { formLoading.value = false; }
+                };
+
+                const deleteKey = async (key) => {
+                    const desc = key.description || key.apiKeyPrefix || key.id;
+                    if (!confirm(`確定要刪除金鑰「${desc}」嗎？此操作無法復原。`)) return;
+                    try {
+                        await apiFetch('/api_keys', { method: 'DELETE', body: JSON.stringify({ id: key.id }) });
+                        showToast('金鑰已刪除');
+                        await fetchKeys();
+                    } catch (e) { showToast('刪除失敗: ' + e.message, 'error'); }
+                };
+
+                // --- Balance ---
+                const fetchBalance = async () => {
+                    balanceLoading.value = true;
+                    try {
+                        const data = await apiFetch('/api_keys/rate_limits');
+                        balanceData.value = data.data || data;
+                    } catch (e) { showToast('載入餘額失敗: ' + e.message, 'error'); }
+                    finally { balanceLoading.value = false; }
+                };
+
+                const rateLimitTypes = computed(() => {
+                    if (!balanceData.value?.rateLimits) return [];
+                    const types = new Set();
+                    for (const rl of balanceData.value.rateLimits) {
+                        for (const limit of (rl.rateLimits || [])) { types.add(limit.type); }
+                    }
+                    return [...types].sort();
+                });
+
+                const getRateLimit = (rl, type) => {
+                    const found = (rl.rateLimits || []).find(l => l.type === type);
+                    return found ? found.amount : '-';
+                };
+
+                // --- Usage ---
+                const fetchUsage = async () => {
+                    usageLoading.value = true;
+                    try {
+                        const data = await apiFetch(`/billing/usage-analytics?lookback=${usageLookback.value}`);
+                        usageData.value = data;
+                    } catch (e) { showToast('載入用量失敗: ' + e.message, 'error'); }
+                    finally { usageLoading.value = false; }
+                };
+
+                const usageKeyNames = computed(() => {
+                    if (!usageData.value?.topKeyNames) return [];
+                    return usageData.value.topKeyNames;
+                });
+
+                // --- Tab auto-fetch ---
+                watch(activeTab, (tab) => {
+                    if (tab === 'balance' && !balanceData.value) fetchBalance();
+                    if (tab === 'usage' && !usageData.value) fetchUsage();
+                });
+
+                // --- Init ---
+                onMounted(() => {
+                    const saved = localStorage.getItem('venice-admin-key');
+                    if (saved) {
+                        rememberKey.value = true;
+                        adminKey.value = saved;
+                        login();
+                    }
+                });
+
+                watch(rememberKey, (v) => {
+                    if (v && adminKey.value) localStorage.setItem('venice-admin-key', adminKey.value);
+                    else localStorage.removeItem('venice-admin-key');
+                });
+
+                return {
+                    adminKey, isAuthenticated, loginLoading, rememberKey, login, logout,
+                    activeTab, tabs, toast,
+                    apiKeys, keysLoading, showModal, editingKey, form, formLoading, newlyCreatedKey,
+                    fetchKeys, openCreateModal, openEditModal, submitForm, deleteKey,
+                    balanceData, balanceLoading, fetchBalance, rateLimitTypes, getRateLimit,
+                    usageData, usageLookback, usageLoading, fetchUsage, usageKeyNames,
+                    formatDate, copyToClipboard, showToast
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
