@@ -134,8 +134,8 @@
                 </a>
             </div>
             <div class="flex items-center gap-2">
-                <label class="text-sm text-gray-400 whitespace-nowrap">Admin Key:</label>
-                <input type="password" v-model="adminKey" placeholder="輸入 ADMIN API Key" @keydown.enter="login"
+                <label class="text-sm text-gray-400 whitespace-nowrap">API Key:</label>
+                <input type="password" v-model="adminKey" placeholder="輸入 API Key (Admin 或 Inference)" @keydown.enter="login"
                     class="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 transition-colors">
                 <button v-if="!isAuthenticated" @click="login" :disabled="loginLoading" type="button"
                     class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 text-white rounded text-sm font-medium transition-colors whitespace-nowrap">
@@ -155,12 +155,16 @@
         <!-- Main Content -->
         <template v-if="isAuthenticated">
             <!-- Tab Navigation -->
-            <nav class="flex gap-1 p-3 border-b border-gray-800 bg-gray-900/50">
-                <button v-for="tab in tabs" :key="tab.id" @click="activeTab = tab.id" type="button"
+            <nav class="flex gap-1 p-3 border-b border-gray-800 bg-gray-900/50 items-center">
+                <button v-for="tab in tabs" :key="tab.id" @click="tab.id !== 'keys' || isAdmin ? activeTab = tab.id : null" type="button"
                     class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                    :class="activeTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'">
+                    :class="[
+                        activeTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700',
+                        tab.id === 'keys' && !isAdmin ? 'opacity-40 cursor-not-allowed !hover:bg-gray-800 !hover:text-gray-400' : ''
+                    ]">
                     {{ tab.label }}
                 </button>
+                <span v-if="!isAdmin" class="text-[10px] text-yellow-500 ml-2">Inference Key — 金鑰管理需要 Admin Key</span>
             </nav>
 
             <main class="flex-1 overflow-y-auto p-4">
@@ -333,8 +337,8 @@
         <div v-else class="flex-1 flex items-center justify-center">
             <div class="text-center text-gray-500 space-y-3">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" class="w-16 h-16 mx-auto text-gray-700"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" /></svg>
-                <p class="text-lg">請輸入 ADMIN API Key 以管理金鑰</p>
-                <p class="text-xs">在上方輸入框填入您的 Venice AI Admin Key 後按登入</p>
+                <p class="text-lg">請輸入 API Key 以開始使用</p>
+                <p class="text-xs">Admin Key：完整管理金鑰 ｜ Inference Key：查看餘額與用量</p>
             </div>
         </div>
 
@@ -350,6 +354,7 @@
                 // Auth
                 const adminKey = ref('');
                 const isAuthenticated = ref(false);
+                const isAdmin = ref(false);
                 const loginLoading = ref(false);
                 const rememberKey = ref(false);
 
@@ -423,18 +428,32 @@
                     if (!adminKey.value.trim()) return showToast('請輸入 API Key', 'error');
                     loginLoading.value = true;
                     try {
+                        // Try listing keys first (requires ADMIN)
                         const data = await apiFetch('/api_keys');
                         isAuthenticated.value = true;
+                        isAdmin.value = true;
                         apiKeys.value = data.data || data || [];
+                        activeTab.value = 'keys';
                         if (rememberKey.value) localStorage.setItem('venice-admin-key', adminKey.value);
-                        showToast('登入成功');
+                        showToast('登入成功 (Admin)');
                     } catch (e) {
-                        showToast('登入失敗: ' + e.message, 'error');
+                        // If 403, try rate_limits as fallback for inference key
+                        try {
+                            await apiFetch('/api_keys/rate_limits');
+                            isAuthenticated.value = true;
+                            isAdmin.value = false;
+                            activeTab.value = 'balance';
+                            if (rememberKey.value) localStorage.setItem('venice-admin-key', adminKey.value);
+                            showToast('登入成功 (Inference Key — 僅可查看餘額與用量)');
+                        } catch (e2) {
+                            showToast('登入失敗: ' + e.message, 'error');
+                        }
                     } finally { loginLoading.value = false; }
                 };
 
                 const logout = () => {
                     isAuthenticated.value = false;
+                    isAdmin.value = false;
                     apiKeys.value = [];
                     balanceData.value = null;
                     usageData.value = null;
@@ -568,7 +587,7 @@
                 });
 
                 return {
-                    adminKey, isAuthenticated, loginLoading, rememberKey, login, logout,
+                    adminKey, isAuthenticated, isAdmin, loginLoading, rememberKey, login, logout,
                     activeTab, tabs, toast,
                     apiKeys, keysLoading, showModal, editingKey, form, formLoading, newlyCreatedKey,
                     fetchKeys, openCreateModal, openEditModal, submitForm, deleteKey,
