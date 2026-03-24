@@ -291,6 +291,7 @@
                         <div class="flex gap-2 items-center">
                             <label class="text-sm text-gray-400">時間範圍:</label>
                             <select v-model="usageLookback" @change="fetchUsage" class="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500">
+                                <option value="1d">1 天</option>
                                 <option value="7d">7 天</option>
                                 <option value="14d">14 天</option>
                                 <option value="30d">30 天</option>
@@ -302,31 +303,88 @@
 
                     <div v-if="usageLoading" class="text-center text-gray-500 py-12">載入中...</div>
                     <template v-else-if="usageData">
-                        <!-- Usage Table -->
-                        <div v-if="usageData.data?.length" class="overflow-x-auto rounded-xl border border-gray-800">
-                            <table class="w-full text-sm">
-                                <thead class="bg-gray-850 text-gray-400">
-                                    <tr>
-                                        <th class="text-left p-3 font-medium">日期</th>
-                                        <th class="text-left p-3 font-medium" v-for="keyName in usageKeyNames" :key="keyName">{{ keyName }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-for="row in usageData.data" :key="row.date" class="border-t border-gray-800 hover:bg-gray-900/50">
-                                        <td class="p-3 text-gray-400 whitespace-nowrap">{{ formatDate(row.date) }}</td>
-                                        <td class="p-3" v-for="keyName in usageKeyNames" :key="keyName">
-                                            <span v-if="row[keyName] != null" class="text-emerald-400">{{ typeof row[keyName] === 'number' ? row[keyName].toFixed(4) : row[keyName] }}</span>
-                                            <span v-else class="text-gray-600">-</span>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+
+                        <!-- Section: Daily Spending (byDate) -->
+                        <div v-if="usageData.byDate?.length" class="mb-6">
+                            <h3 class="text-md font-bold mb-3">每日花費</h3>
+                            <div class="overflow-x-auto rounded-xl border border-gray-800">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-gray-850 text-gray-400">
+                                        <tr>
+                                            <th class="text-left p-3 font-medium">日期</th>
+                                            <th class="text-right p-3 font-medium">USD</th>
+                                            <th class="text-right p-3 font-medium">DIEM</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="row in usageData.byDate" :key="row.date" class="border-t border-gray-800 hover:bg-gray-900/50">
+                                            <td class="p-3 text-gray-400 whitespace-nowrap">{{ formatDate(row.date) }}</td>
+                                            <td class="p-3 text-right text-emerald-400">${{ row.USD?.toFixed(4) ?? '-' }}</td>
+                                            <td class="p-3 text-right text-blue-400">{{ row.DIEM?.toFixed(4) ?? '-' }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                        <div v-else class="text-center text-gray-500 py-8">選定期間內無用量紀錄</div>
+
+                        <!-- Section: By Model -->
+                        <div v-if="usageData.byModel?.length" class="mb-6">
+                            <h3 class="text-md font-bold mb-3">各模型用量</h3>
+                            <div class="overflow-x-auto rounded-xl border border-gray-800">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-gray-850 text-gray-400">
+                                        <tr>
+                                            <th class="text-left p-3 font-medium">模型</th>
+                                            <th class="text-left p-3 font-medium">類型</th>
+                                            <th class="text-right p-3 font-medium">單位</th>
+                                            <th class="text-right p-3 font-medium">USD</th>
+                                            <th class="text-right p-3 font-medium">DIEM</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="m in usageData.byModel" :key="m.modelName" class="border-t border-gray-800 hover:bg-gray-900/50">
+                                            <td class="p-3 font-medium">{{ m.modelName }}</td>
+                                            <td class="p-3 text-gray-400">
+                                                <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700">{{ m.modelType }}</span>
+                                            </td>
+                                            <td class="p-3 text-right text-gray-300">{{ m.totalUnits?.toLocaleString() }} <span class="text-[10px] text-gray-500">{{ m.unitType }}</span></td>
+                                            <td class="p-3 text-right text-emerald-400">${{ m.totalUsd?.toFixed(4) }}</td>
+                                            <td class="p-3 text-right text-blue-400">{{ m.totalDiem?.toFixed(4) }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Section: By Key -->
+                        <div v-if="usageData.byKey?.length" class="mb-6">
+                            <h3 class="text-md font-bold mb-3">各金鑰用量</h3>
+                            <div class="overflow-x-auto rounded-xl border border-gray-800">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-gray-850 text-gray-400">
+                                        <tr>
+                                            <th class="text-left p-3 font-medium">金鑰描述</th>
+                                            <th class="text-right p-3 font-medium">單位</th>
+                                            <th class="text-right p-3 font-medium">USD</th>
+                                            <th class="text-right p-3 font-medium">DIEM</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="k in usageData.byKey" :key="k.apiKeyId || k.description" class="border-t border-gray-800 hover:bg-gray-900/50">
+                                            <td class="p-3">{{ k.description || '(未命名)' }}</td>
+                                            <td class="p-3 text-right text-gray-300">{{ k.totalUnits?.toLocaleString() }}</td>
+                                            <td class="p-3 text-right text-emerald-400">${{ k.totalUsd?.toFixed(4) }}</td>
+                                            <td class="p-3 text-right text-blue-400">{{ k.totalDiem?.toFixed(4) }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div v-if="!usageData.byDate?.length && !usageData.byModel?.length && !usageData.byKey?.length" class="text-center text-gray-500 py-8">選定期間內無用量紀錄</div>
                     </template>
                     <div v-else class="text-center text-gray-500 py-12">
                         <p>點擊「重新整理」載入用量資料</p>
-                        <p class="text-xs mt-1 text-gray-600">需要 ADMIN 金鑰權限</p>
                     </div>
                 </div>
 
@@ -560,11 +618,6 @@
                     finally { usageLoading.value = false; }
                 };
 
-                const usageKeyNames = computed(() => {
-                    if (!usageData.value?.topKeyNames) return [];
-                    return usageData.value.topKeyNames;
-                });
-
                 // --- Tab auto-fetch ---
                 watch(activeTab, (tab) => {
                     if (tab === 'balance' && !balanceData.value) fetchBalance();
@@ -592,7 +645,7 @@
                     apiKeys, keysLoading, showModal, editingKey, form, formLoading, newlyCreatedKey,
                     fetchKeys, openCreateModal, openEditModal, submitForm, deleteKey,
                     balanceData, balanceLoading, fetchBalance, rateLimitTypes, getRateLimit,
-                    usageData, usageLookback, usageLoading, fetchUsage, usageKeyNames,
+                    usageData, usageLookback, usageLoading, fetchUsage,
                     formatDate, copyToClipboard, showToast
                 };
             }
